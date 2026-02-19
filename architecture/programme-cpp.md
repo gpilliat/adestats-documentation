@@ -14,38 +14,61 @@ Le programme gère le cycle complet : connexion aux sources, extraction, chargem
 ## Architecture technique
 
 ```mermaid
-graph TB
-    subgraph PROGRAMME["Programme C++ (ade)"]
-
-        subgraph CONFIG["Configuration"]
-            CL["📄 <b>ConfigLoader</b><br/>adestats.conf<br/>───<br/>Identifiants DB<br/>Chemins"]
-            SQL["📜 <b>sqlString</b><br/>Charge les .sql<br/>───<br/>Substitution :<br/>{{PROJECTID}}<br/>{{ADEPROJECTID}}<br/>{{SCHEMA}}"]
-        end
-
-        subgraph ORACLE_LAYER["Couche Oracle"]
-            OCCI["🔌 <b>OCCI 19c</b><br/>───<br/>Connexion simultanée à 3 bases :<br/>• ADE (planification)<br/>• COCKTAIL (RH)<br/>• STATS (destination)"]
-        end
-
-        subgraph SYSTEME["Mécanismes système"]
-            FORK["🔀 <b>fork()</b><br/>───<br/>Parent : progression<br/>Enfant : extraction"]
-            SHM["🧠 <b>Mémoire partagée</b><br/>shmget / shmat<br/>───<br/>Avancement<br/>entre processus"]
-            FLOCK["🔒 <b>flock (PID)</b><br/>───<br/>Empêche l'exécution<br/>simultanée"]
-            LOG["📝 <b>log_to_file</b><br/>───<br/>Journalisation<br/>horodatée"]
-        end
-
+graph TD
+    subgraph SOURCES["Sources de Donnees"]
+        ADE["<b>ADE</b><br/>Emploi du temps<br/>TBLADEACTIVITIES"]
+        APO["<b>APOGEE</b><br/>Scolarite<br/>ETAPE @APO6"]
+        CKT["<b>COCKTAIL</b><br/>RH / Previsionnel<br/>@GRHUM"]
     end
 
-    CL --> OCCI
-    SQL --> OCCI
-    FORK <-->|"état"| SHM
+    subgraph ETL["Serveur ETL (Linux RHEL)"]
+        CRON["CRON"]
+        WRAP["run_stats.sh<br/>ulimit -n 65536"]
+        CONF["adestats.conf"]
+        CPP["<b>Programme C++</b><br/>OCCI 19c<br/>───<br/>Jointures :<br/>• ACTIVITY_ID (ADE)<br/>• COD_ETP (APOGEE)<br/>• COD_ETP (COCKTAIL)"]
+    end
 
-    style CL fill:#42A5F5,stroke:#1565C0,color:#fff
-    style SQL fill:#42A5F5,stroke:#1565C0,color:#fff
-    style OCCI fill:#F44336,stroke:#C62828,color:#fff
-    style FORK fill:#FF9800,stroke:#E65100,color:#fff
-    style SHM fill:#FF9800,stroke:#E65100,color:#fff
-    style FLOCK fill:#AB47BC,stroke:#6A1B9A,color:#fff
-    style LOG fill:#78909C,stroke:#37474F,color:#fff
+    subgraph ORACLE["Base Oracle 19c"]
+        LISTENER["Listener<br/>Handler statique (SID)"]
+
+        subgraph INSTANCE["Instance & Stockage"]
+            IMPORT["Tables<br/>d'importation"]
+            PLSQL["Procedures<br/>PL/SQL (x8)"]
+            REDO["Redo Logs<br/>4 x 1 Go"]
+            MODEL["<b>Modele relationnel<br/>final</b>"]
+        end
+    end
+
+    subgraph REPORT["Reporting & Sorties"]
+        OR["OpenReport<br/>(legacy)"]
+        RS["<b>ReportServer</b><br/>(actuel)"]
+    end
+
+    ADE -->|"ACTIVITY_ID<br/>@ADEPROD6"| CPP
+    APO -->|"COD_ETP<br/>@APO6"| CPP
+    CKT -->|"COD_ETP<br/>@GRHUM"| CPP
+
+    CRON --> WRAP
+    CONF -.->|"Config"| CPP
+    WRAP --> CPP
+
+    CPP -->|"Chargement<br/>SID statique"| LISTENER
+    LISTENER --> IMPORT
+    IMPORT --> PLSQL
+    PLSQL --> MODEL
+    REDO -.->|"Journalisation"| MODEL
+
+    MODEL --> OR
+    MODEL --> RS
+
+    style ADE fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style APO fill:#2196F3,stroke:#1565C0,color:#fff
+    style CKT fill:#9C27B0,stroke:#6A1B9A,color:#fff
+    style CPP fill:#F44336,stroke:#C62828,color:#fff
+    style MODEL fill:#009688,stroke:#004D40,color:#fff
+    style RS fill:#5C6BC0,stroke:#3949AB,color:#fff
+    style OR fill:#3F51B5,stroke:#283593,color:#fff
+
 ```
 
 ---
