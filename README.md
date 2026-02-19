@@ -2,7 +2,7 @@
 
 ## Contexte
 
-**ADESTATS** est un pipeline de statistiques d'enseignement conçu pour un établissement d'enseignement supérieur gérant environ **15 000 étudiants** et **90 000 événements planifiés** par an. Il assure l'extraction des données de planification (emplois du temps), leur croisement avec les référentiels de scolarité (Apogée) et de ressources humaines (Cocktail), afin d'alimenter les tableaux de bord décisionnels.
+**ADESTATS** est un pipeline de statistiques d'enseignement conçu pour un établissement d'enseignement supérieur d'environ 15 000 étudiants et 90 000 événements planifiés par an. Il assure l'extraction des données de planification, leur croisement avec les référentiels de scolarité (Apogée) et de ressources humaines (Cocktail), afin d'alimenter les tableaux de bord décisionnels.
 
 **Criticité :** ce pipeline est vital pour le Pilotage institutionnel. Il permet :
 
@@ -22,21 +22,21 @@ J'ai repris la maintenance complète de ce système (code C++, PL/SQL, serveur O
 ```mermaid
 flowchart TB
     subgraph Sources["Sources de donnees"]
-        ADE["ADE\n(emplois du temps)"]
-        APO["Apogee\n(scolarite)"]
-        COCKTAIL["Cocktail\n(RH)"]
+        ADE["ADE<br/>(emplois du temps)"]
+        APO["Apogee<br/>(scolarite)"]
+        COCKTAIL["Cocktail<br/>(RH)"]
     end
 
     subgraph ETL["Serveur ETL — Linux RHEL"]
-        CRON["CRON\nrun_stats.sh"]
-        CPP["Programme C++\nOCCI 19c\nfork() + memoire partagee"]
-        CONF["adestats.conf\nSQL externes"]
+        CRON["CRON<br/>run_stats.sh"]
+        CPP["Programme C++<br/>OCCI 19c<br/>fork() + memoire partagee"]
+        CONF["adestats.conf<br/>SQL externes"]
     end
 
     subgraph Oracle["Base Oracle 19c"]
         IMPORT["Tables d'importation"]
-        PLSQL["8 procedures PL/SQL\n(chaine sequentielle)"]
-        PROD["Tables de production\n(schemas annualises)"]
+        PLSQL["8 procedures PL/SQL<br/>(chaine sequentielle)"]
+        PROD["Tables de production<br/>(schemas annualises)"]
     end
 
     subgraph Reporting["Reporting"]
@@ -49,7 +49,7 @@ flowchart TB
     COCKTAIL --> CPP
     CRON --> CPP
     CONF --> CPP
-    CPP -->|"Listener\nSID statique"| IMPORT
+    CPP -->|"Listener<br/>SID statique"| IMPORT
     IMPORT --> PLSQL
     PLSQL --> PROD
     PROD --> RS
@@ -65,14 +65,14 @@ Le traitement est orchestré par une procédure maître qui appelle 8 étapes s�
 
 ```mermaid
 flowchart LR
-    M["PROC_MAITRE"] --> P1["P001\nPurge"]
-    P1 --> P2["P002\nVentilation"]
-    P2 --> P3["P003\nEnrichissement"]
-    P3 --> P4["P004\nAgregation heures"]
-    P4 --> P5["P005\nCodes etape"]
-    P5 --> P6["P006\nCroisement RH"]
-    P6 --> P7["P007\nAssemblage final"]
-    P7 --> P8["P008\nBascule production"]
+    M["PROC_MAITRE"] --> P1["P001<br/>Purge"]
+    P1 --> P2["P002<br/>Ventilation"]
+    P2 --> P3["P003<br/>Enrichissement"]
+    P3 --> P4["P004<br/>Agregation heures"]
+    P4 --> P5["P005<br/>Codes etape"]
+    P5 --> P6["P006<br/>Croisement RH"]
+    P6 --> P7["P007<br/>Assemblage final"]
+    P7 --> P8["P008<br/>Bascule production"]
 
 ```
 
@@ -83,7 +83,7 @@ flowchart LR
 | **3** | `PROC_003` | Enrichissement : calcul des effectifs groupes et mapping des codes salles ABYLA. |
 | **4** | `PROC_004` | Agrégation des volumes horaires par type (CM, TD, TP, CI, CONF, PROJET). |
 | **5** | `PROC_005` | Construction des codes étape : calcul des effectifs et listage (LISTAGG). |
-| **6** | `PROC_006` | Croisement RH (corps, contrat) et application des coefficients équivalent TD (CM×1.5, TD×1.0, TP÷1.5). |
+| **6** | `PROC_006` | Croisement RH (corps, contrat) et application des coefficients équivalent TD (CM x 1.5, TD x 1.0, TP / 1.5). |
 | **7** | `PROC_007` | Assemblage du rapport dénormalisé final intégrant salles, codes ABYLA et effectifs ventilés. |
 | **8** | `PROC_008` | Bascule finale des tables de travail (_W) vers les tables de production. |
 
@@ -92,7 +92,7 @@ flowchart LR
 ## Contenu du dépôt
 
 * **README.md** : Documentation globale du pipeline.
-* **snippet_occi_fork.cpp** : Extrait du code C++ (connexion OCCI, `fork()`, mémoire partagée).
+* **snippet_occi_fork.cpp** : Extrait du code C++ (connexion OCCI, fork, mémoire partagée).
 * **architecture/** : Détails sur les VMs, les schémas Oracle et le binaire C++.
 * **diagrammes/** : Sources des diagrammes Mermaid (flux, chaîne de traitement).
 * **incidents/** : Post-mortems (erreurs OCCI ORA-12516, problèmes de VARCHAR2 BYTE vs CHAR ORA-12899).
@@ -104,12 +104,12 @@ flowchart LR
 
 ## Points techniques notables
 
-* **Multi-processus C++** : Utilisation de `fork()` pour séparer l'extraction de l'affichage de progression. La communication est gérée via des segments de mémoire partagée (`shmget`/`shmat`) et la concurrence par `flock`.
+* **Multi-processus C++** : Utilisation de fork pour séparer l'extraction de l'affichage de progression. La communication est gérée via des segments de mémoire partagée (shmget/shmat) et la concurrence par flock.
 * **Rétro-ingénierie** : Reconstitution complète de la logique système (C++ et PL/SQL) en partant de zéro documentation.
-* **Pattern "Tables de travail"** : Utilisation de tables intermédiaires `_W` permettant de sécuriser les transformations avant la bascule en production.
+* **Pattern Tables de travail** : Utilisation de tables intermédiaires _W permettant de sécuriser les transformations avant la bascule en production.
 * **Jointures hétérogènes** : Croisement de 3 sources distinctes (ADE, Apogée, Cocktail) via DB links.
-* **Maintenance évolutive** : Correction de bugs hérités sur la ventilation (`IS_COURSEMEMBER`), optimisation via REGEX et alignement des types Oracle.
-* **Annualisation** : Gestion de 7 schémas Oracle annuels (`ADESTATS_01` à `_07`) pour l'historisation des données.
+* **Maintenance évolutive** : Correction de bugs hérités sur la ventilation (IS_COURSEMEMBER), optimisation via REGEX et alignement des types Oracle (BYTE vs CHAR).
+* **Annualisation** : Gestion de 7 schémas Oracle annuels (ADESTATS_01 à _07) pour l'historisation des données.
 
 ---
 
@@ -117,9 +117,9 @@ flowchart LR
 
 | Indicateur | Valeur |
 | --- | --- |
-| **Étudiants** | ~15 000 |
-| **Événements planifiés** | ~90 000 |
-| **Enseignants (RH)** | ~1 500 |
+| **Étudiants** | Environ 15 000 |
+| **Événements planifiés** | Environ 90 000 |
+| **Enseignants (RH)** | Environ 1 500 |
 | **Salles référencées** | 466 |
 | **Production** | 12 tables par schéma annuel |
 | **Fréquence** | Quotidienne (J+1) |
