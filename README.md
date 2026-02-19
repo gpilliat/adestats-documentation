@@ -13,7 +13,8 @@
 
 Un arrêt de production impacte directement la Direction du Pilotage et les composantes de l'université.
 
-J'ai repris la maintenance complète de ce système (code C++, PL/SQL, serveur Oracle, exploitation) alors qu'**aucune documentation n'existait**. Ce dépôt est le fruit d'un travail de rétro-ingénierie visant à documenter le fonctionnement interne et les correctifs apportés.
+Reprise de la maintenance complète dans un contexte de documentation technique lacunaire, ce système a fait l'objet d'un audit approfondi.
+Ce dépôt centralise l'effort de rétro-ingénierie réalisé pour documenter le fonctionnement interne (C++ / PL/SQL) et assurer la traçabilité des correctifs appliqués.
 
 ---
 
