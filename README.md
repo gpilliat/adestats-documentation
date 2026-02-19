@@ -123,7 +123,7 @@ Les données sont historisées dans des schémas Oracle annuels. Un schéma comm
 
 ```mermaid
 graph TD
-    COMMON["<b>ADESTATS</b><br/>(schéma commun)<br/>UHA_ADEPROJECTS<br/>UHA_ABYLA"]
+    COMMON["<b>ADESTATS</b><br/>(schéma commun)<br/>UHA_ADEPROJECTS"]
     S06["ADESTATS_06<br/>(année N-1)"]
     S07["ADESTATS_07<br/>(année N)"]
     S08["ADESTATS_08<br/>(à créer)"]
