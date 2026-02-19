@@ -126,12 +126,11 @@ flowchart LR
 
 ---
 
-## Maintenance du système
+## Contexte de maintenance
 
-La maintenance est multi-couches :
-
-1. **Code PL/SQL** : Évolutions fonctionnelles et corrections de bugs de calcul.
-2. **Binaire C++** : Compilation avec OCCI 19c et gestion des dépendances.
-3. **Infrastructure Oracle** : Surveillance du listener, des redo logs et du dimensionnement.
-4. **OS Linux** : Gestion des tâches cron, des limites système (ulimit) et de SELinux.
-5. **Reporting** : Maintien des états sous ReportServer et du legacy OpenReport.
+Ce système est en **production quotidienne** et utilisé pour le pilotage et les scolarités. La maintenance couvre :
+- Le code PL/SQL (corrections, évolutions fonctionnelles)
+- Le binaire C++ 
+- Le serveur Oracle 19c (listener, redo logs, dimensionnement)
+- Le système d'exploitation RHEL
+- L'intégration avec les outils de reporting (ReportServer, OpenReport)
