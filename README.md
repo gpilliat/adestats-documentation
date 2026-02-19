@@ -13,13 +13,12 @@
 
 Un arrêt de production impacte directement la Direction du Pilotage et les composantes de l'université.
 
-Reprise de la maintenance complète dans un contexte de documentation technique lacunaire, ce système a fait l'objet d'un audit approfondi. Ce dépôt centralise l'effort de rétro-ingénierie réalisé pour documenter le fonctionnement interne (C++ / PL/SQL) et assurer la traçabilité des correctifs appliqués.
+Reprise de la maintenance complète dans un contexte de documentation technique lacunaire, ce système a fait l'objet d'un audit approfondi.
+Ce dépôt centralise l'effort de rétro-ingénierie réalisé pour documenter le fonctionnement interne (C++ / PL/SQL) et assurer la traçabilité des correctifs appliqués.
 
 ---
 
 ## Architecture
-
-Le système s'appuie sur une infrastructure distribuée dont les détails (VMs, instances Oracle, flux réseaux) sont inventoriés dans le document des **[composants système](https://www.google.com/search?q=architecture/composants.md)**. Les **[diagrammes d'architecture](https://www.google.com/search?q=diagrammes/architecture.md)** au format Mermaid détaillent visuellement ces interactions.
 
 ```mermaid
 flowchart TB
@@ -57,14 +56,13 @@ flowchart TB
     PROD --> RS
     PROD --> OR
 
-
 ```
 
 ---
 
 ## Chaîne de traitement PL/SQL
 
-Le traitement est orchestré par une procédure maître qui appelle 8 étapes séquentielles. Chaque étape est journalisée dans une table de logs dédiée. Vous trouverez la spécification technique complète de ces procédures dans la **[documentation de la chaîne de traitement](https://www.google.com/search?q=architecture/chaine-traitement.md)**.
+Le traitement est orchestré par une procédure maître qui appelle 8 étapes séquentielles. Chaque étape est journalisée dans une table de logs dédiée.
 
 ```mermaid
 flowchart LR
@@ -76,7 +74,6 @@ flowchart LR
     P5 --> P6["P006<br/>Croisement RH"]
     P6 --> P7["P007<br/>Assemblage final"]
     P7 --> P8["P008<br/>Bascule production"]
-
 
 ```
 
@@ -93,15 +90,26 @@ flowchart LR
 
 ---
 
+## Contenu du dépôt
+
+* **README.md** : Documentation globale du pipeline.
+* **snippet_occi_fork.cpp** : Extrait du code C++ (connexion OCCI, fork, mémoire partagée).
+* **architecture/** : Détails sur les VMs, les schémas Oracle et le binaire C++.
+* **diagrammes/** : Sources des diagrammes Mermaid (flux, chaîne de traitement).
+* **incidents/** : Post-mortems (erreurs OCCI ORA-12516, problèmes de VARCHAR2 BYTE vs CHAR ORA-12899).
+* **plsql/** : Procédures PL/SQL anonymisées.
+* **exploitation/** : Scripts de lancement (cron, Shell) et fichiers de configuration.
+* **vues/** : Définitions des vues SQL pour la couche de reporting.
+
+---
+
 ## Points techniques notables
 
-* **Multi-processus C++** : Le binaire utilise fork pour séparer l'extraction de l'affichage de progression. Le fonctionnement interne de l'ETL (OCCI, mémoire partagée, flock) est décrit dans le fichier **[programme-cpp.md](https://www.google.com/search?q=architecture/programme-cpp.md)** et illustré par ce **[snippet de code OCCI](https://www.google.com/search?q=snippet_occi_fork.cpp)**.
+* **Multi-processus C++** : Utilisation de fork pour séparer l'extraction de l'affichage de progression. La communication est gérée via des segments de mémoire partagée (shmget/shmat) et la concurrence par flock.
 * **Rétro-ingénierie** : Reconstitution complète de la logique système (C++ et PL/SQL) en partant de zéro documentation.
-* **Maintenance évolutive et Incidents** : Plusieurs anomalies critiques ont été identifiées et résolues, notamment :
-* Le conflit de librairies Oracle 19c/21c (**[Post-mortem ORA-12516](https://www.google.com/search?q=incidents/ora-12516-occi.md)**).
-* Le désalignement des types VARCHAR2 BYTE vs CHAR (**[Post-mortem ORA-12899](https://www.google.com/search?q=incidents/ora-12899-varchar.md)**).
-
-
+* **Pattern Tables de travail** : Utilisation de tables intermédiaires _W permettant de sécuriser les transformations avant la bascule en production.
+* **Jointures hétérogènes** : Croisement de 3 sources distinctes (ADE, Apogée, Cocktail) via DB links.
+* **Maintenance évolutive** : Correction de bugs hérités sur la ventilation (IS_COURSEMEMBER), optimisation via REGEX et alignement des types Oracle (BYTE vs CHAR).
 * **Annualisation** : Gestion de 7 schémas Oracle annuels (ADESTATS_01 à _07) pour l'historisation des données.
 
 ---
@@ -122,9 +130,8 @@ flowchart LR
 ## Contexte de maintenance
 
 Ce système est en **production quotidienne** et utilisé pour le pilotage et les scolarités. La maintenance couvre :
-
-* Le code PL/SQL (corrections, évolutions fonctionnelles).
-* Le binaire C++.
-* Le serveur Oracle 19c (listener, redo logs, dimensionnement).
-* Le système d'exploitation RHEL.
-* L'intégration avec les outils de reporting (ReportServer, OpenReport).
+- Le code PL/SQL (corrections, évolutions fonctionnelles)
+- Le binaire C++ 
+- Le serveur Oracle 19c (listener, redo logs, dimensionnement)
+- Le système d'exploitation RHEL
+- L'intégration avec les outils de reporting (ReportServer, OpenReport)
