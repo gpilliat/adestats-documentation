@@ -9,7 +9,7 @@ Extraction de données de planification, croisement avec des référentiels de s
 
 Le système repose sur trois sources de données, un programme C++ d'extraction (OCCI / fork / mémoire partagée), une base Oracle 19c avec une chaîne de procédures PL/SQL séquentielles, et une couche de reporting.
 
-```
+```mermaid
 graph TD
     subgraph SOURCES["Sources de données"]
         ADE["Emploi du temps"]
@@ -56,7 +56,7 @@ graph TD
 
 Le traitement est orchestré par une procédure maître qui appelle une séquence d'étapes, chacune journalisée dans une table de logs dédiée.
 
-```
+```mermaid
 graph LR
     M["Procédure maître<br/>Orchestrateur"]
     P1["Purge des tables<br/>de travail"]
