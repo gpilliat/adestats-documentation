@@ -6,44 +6,43 @@
 
 | | |
 |---|---|
-| OS | RHEL (Red Hat Enterprise Linux) |
-| RAM | 16 Go |
+| OS | Linux (Red Hat Enterprise Linux) |
 | Oracle | 19c Enterprise Edition |
-| SID | ADESTATS |
-| Binaire métier | `/home/oracle/bin/ade` (C++, OCCI 19c) |
-| Scripts | `run_stats.sh`, `import-sympa.sh` |
+| Binaire métier | Programme C++ (OCCI 19c) |
+| Scripts | Script d'orchestration principal + script d'export secondaire |
 
 ### Base Oracle
 
 | | |
 |---|---|
-| Instance | ADESTATS (CDB) |
-| Listener | TCP 1521, handler statique (SID) |
-| Redo Logs | 4 × 1 Go |
-| Services | ADESTATS (principal), PDB auxiliaire |
+| Listener | Handler statique (SID) |
+| Redo Logs | Dimensionnement adapté au volume transactionnel |
+| Services | Instance principale + PDB auxiliaire |
 
 ### Schémas annualisés
 
 Chaque année universitaire dispose de son propre schéma :
 
-- **`ADESTATS`** — schéma commun (table de référence `UHA_ADEPROJECTS`, table `UHA_ABYLA`)
-- **`ADESTATS_06`** — année N-1
-- **`ADESTATS_07`** — année N (en cours)
+- **Schéma commun** — porte les tables de référence partagées (table de pilotage des projets, table de correspondance patrimoniale)
+- **Schéma N-1** — année précédente, conservée en historique
+- **Schéma N** — année en cours
 
 Chaque schéma contient :
-- Tables d'extraction (`UHA_EXTRACTION_ADE`, `UHA_EXTRACTION_ADE_CHARACTERISTICS`, `UHA_EXTRACTION_COCKTAIL`)
-- Tables de travail (suffixe `_W`)
-- Tables de production (sans suffixe)
-- Procédures PL/SQL (`UHA_ADESTATS_001` à `_008`)
-- Tables temporaires (`UHA_P00x_TEMP__*`)
+- Tables d'extraction (une par source)
+- Tables de travail (préfixe dédié, isolées de la production)
+- Tables de production (résultat final)
+- Chaîne de procédures PL/SQL (8 étapes)
+- Tables temporaires de calcul intermédiaire
 
 ### Connexion aux sources
 
-| Source | DB Link | Table/Vue principale | Clé de jointure |
-|---|---|---|---|
-| ADE (emploi du temps) | @ADEPROD6 | TBLADEACTIVITIES | ACTIVITY_ID |
-| APOGEE (scolarité) | @APO6 | ETAPE | COD_ETP |
-| COCKTAIL (RH) | @GRHUM | UHA_PREVISIONNEL | COD_ETP |
+Le système consolide trois sources hétérogènes via des liens de base de données Oracle :
+
+| Source | Contenu | Clé de jointure |
+|---|---|---|
+| Emploi du temps | Activités pédagogiques, salles, créneaux | Identifiant d'activité |
+| Scolarité | Étapes et codes de formation | Code étape |
+| RH / Prévisionnel | Enseignants, contrats, corps | Code étape |
 
 ---
 
@@ -51,23 +50,18 @@ Chaque schéma contient :
 
 ### Extraction (C++)
 
-Le binaire `ade` (C++/OCCI) :
-1. Se connecte aux 3 sources via DB links Oracle
-2. Effectue les jointures entre ADE, APOGEE et COCKTAIL
+Le binaire d'extraction (C++/OCCI) :
+1. Se connecte aux 3 sources via liens de base de données Oracle
+2. Effectue les jointures entre les trois systèmes sources
 3. Charge les résultats dans les tables d'extraction du schéma cible
 
 ### Transformation (PL/SQL)
 
-La procédure maître `UHA_ADESTATS(PROJECTID, ADEPROJECTID)` appelle
-séquentiellement les 8 sous-procédures qui transforment les données
-d'extraction en modèle relationnel final exploitable par le reporting.
+Une procédure maître appelle séquentiellement les 8 sous-procédures qui transforment les données d'extraction en modèle relationnel final exploitable par le reporting.
 
 ### Consommation (Reporting)
 
-Les outils de reporting se connectent en JDBC :
-```
-jdbc:oracle:thin:@serveur:1521:ADESTATS
-```
+Les outils de reporting se connectent en JDBC à l'instance Oracle.
 
 Outils connectés :
 - **ReportServer** (actuel) — rapports interactifs
@@ -77,15 +71,14 @@ Outils connectés :
 
 ## 3. Table de référence des projets
 
-La table `ADESTATS.UHA_ADEPROJECTS` contrôle l'exécution :
+Une table de pilotage contrôle l'exécution des traitements :
 
 | Colonne | Rôle |
 |---|---|
-| `PROJECTID` | Identifiant du projet |
-| `ADEPROJECTID` | Identifiant ADE associé |
-| `SCHEMA` | Schéma cible (ex: ADESTATS_07) |
-| `EXTRACT_ENABLE` | 0/1 — active le traitement |
-| `EXTRATION_DATE_START` | Horodatage début extraction |
-| `EXTRATION_DATE_END` | Horodatage fin extraction |
+| Identifiant projet | Identifiant du traitement |
+| Identifiant source | Identifiant côté système source |
+| Schéma cible | Schéma de destination (ex: schéma de l'année en cours) |
+| Indicateur d'activation | Active ou désactive le traitement |
+| Horodatage début / fin | Suivi de l'exécution |
 
-Les traitements se basent sur le dernier projet actif (`EXTRACT_ENABLE = 1`).
+Les traitements se basent sur le dernier projet actif.
