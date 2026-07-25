@@ -5,25 +5,24 @@
 ```mermaid
 graph TD
     subgraph SOURCES["Sources de Données"]
-        ADE["🗓️ <b>ADE</b><br/>Emploi du temps<br/>TBLADEACTIVITIES"]
-        APO["🎓 <b>APOGEE</b><br/>Scolarité<br/>ETAPE @APO6"]
-        CKT["👤 <b>COCKTAIL</b><br/>RH / Prévisionnel<br/>@GRHUM"]
+        ADE["🗓️ <b>Emploi du temps</b>"]
+        APO["🎓 <b>Scolarité</b>"]
+        CKT["👤 <b>RH / Prévisionnel</b>"]
     end
 
-    subgraph ETL["Serveur ETL (Linux RHEL)"]
-        CRON["⏰ CRON"]
-        WRAP["🔧 run_stats.sh<br/>ulimit -n 65536"]
-        CONF["📄 adestats.conf"]
-        CPP["⬡ <b>Programme C++</b><br/>OCCI 19c<br/>───<br/>Jointures :<br/>• ACTIVITY_ID (ADE)<br/>• COD_ETP (APOGEE)<br/>• COD_ETP (COCKTAIL)"]
+    subgraph ETL["Serveur ETL (Linux)"]
+        CRON["⏰ Ordonnanceur"]
+        WRAP["🔧 Script d'orchestration"]
+        CPP["⬡ <b>Programme C++</b><br/>OCCI 19c<br/>───<br/>Jointures multi-sources"]
     end
 
     subgraph ORACLE["Base Oracle 19c"]
-        LISTENER["🔌 Listener<br/>Handler statique (SID)"]
+        LISTENER["🔌 Listener"]
 
         subgraph INSTANCE["Instance & Stockage"]
             IMPORT["📥 Tables<br/>d'importation"]
             PLSQL["⚙️ Procédures<br/>PL/SQL (×8)"]
-            REDO["💾 Redo Logs<br/>4 × 1 Go"]
+            REDO["💾 Redo Logs"]
             MODEL["🏛️ <b>Modèle relationnel<br/>final</b>"]
         end
     end
@@ -33,15 +32,14 @@ graph TD
         RS["📊 <b>ReportServer</b><br/>(actuel)"]
     end
 
-    ADE -->|"ACTIVITY_ID<br/>@ADEPROD6"| CPP
-    APO -->|"COD_ETP<br/>@APO6"| CPP
-    CKT -->|"COD_ETP<br/>@GRHUM"| CPP
+    ADE --> CPP
+    APO --> CPP
+    CKT --> CPP
 
     CRON --> WRAP
-    CONF -.->|"Config"| CPP
     WRAP --> CPP
 
-    CPP -->|"Chargement<br/>SID statique"| LISTENER
+    CPP --> LISTENER
     LISTENER --> IMPORT
     IMPORT --> PLSQL
     PLSQL --> MODEL
@@ -63,8 +61,8 @@ graph TD
 
 ```mermaid
 graph LR
-    M["<b>PROC_MAITRE</b><br/>Orchestrateur"]
-    P1["P001<br/>Purge _W"]
+    M["<b>Procédure maître</b><br/>Orchestrateur"]
+    P1["P001<br/>Purge"]
     P2["P002<br/>Ventilation"]
     P3["P003<br/>Enrichissement"]
     P4["P004<br/>Agrégation<br/>heures"]
@@ -83,11 +81,11 @@ graph LR
 
 ```mermaid
 graph TD
-    COMMON["<b>ADESTATS</b><br/>(schéma commun)<br/>UHA_ADEPROJECTS<br/>UHA_ABYLA"]
+    COMMON["<b>Schéma commun</b><br/>Tables de référence partagées"]
 
-    S06["ADESTATS_06<br/>(année N-1)"]
-    S07["ADESTATS_07<br/>(année N)"]
-    S08["ADESTATS_08<br/>(à créer)"]
+    S06["Schéma<br/>(année N-1)"]
+    S07["Schéma<br/>(année N)"]
+    S08["Schéma<br/>(à créer)"]
 
     COMMON --> S06
     COMMON --> S07
