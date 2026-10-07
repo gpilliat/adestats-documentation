@@ -1,124 +1,98 @@
-# ADESTATS — Pipeline ETL de statistiques d'enseignement
+# Migration JasperReports — OpenReport vers ReportServer
 
-Pipeline de statistiques d'enseignement pour un établissement d'enseignement supérieur.
-Extraction de données de planification, croisement avec des référentiels de scolarité et de ressources humaines, alimentation de tableaux de bord décisionnels pour le pilotage institutionnel.
+> Retour d'expérience sur la migration de rapports JasperReports complexes entre deux plateformes de reporting. Ce dépôt documente les incompatibilités découvertes, les solutions techniques mises en œuvre, et les pièges à éviter.
 
----
+## Pourquoi ce dépôt
 
-## Architecture
+Dans le cadre du remplacement d'**OpenReport** (OR) par **ReportServer** (RS) à l'Université de Haute-Alsace, la migration des rapports SQL standards s'est faite sans difficulté — un simple copier-coller des requêtes suffit.
 
-Le système repose sur trois sources de données, un programme C++ d'extraction (OCCI / fork / mémoire partagée), une base Oracle 19c avec une chaîne de procédures PL/SQL séquentielles, et une couche de reporting.
+Les rapports **JasperReports** (.jrxml), en revanche, ont révélé une série d'incompatibilités profondes entre les deux plateformes. Ce qui fonctionnait parfaitement sous OpenReport depuis des années a nécessité une réécriture complète de l'architecture : nouveau code PL/SQL, modification des JRXML, et adaptation aux comportements spécifiques de ReportServer.
 
-```mermaid
-graph TD
-    subgraph SOURCES["Sources de données"]
-        ADE["Emploi du temps"]
-        APO["Scolarité"]
-        CKT["RH / Prévisionnel"]
-    end
+Ce dépôt capitalise sur ce travail pour servir de référence à toute équipe confrontée à une migration similaire.
 
-    subgraph ETL["Serveur ETL (Linux)"]
-        CRON["Ordonnanceur (cron)"]
-        WRAP["Script d'orchestration"]
-        CPP["Programme C++<br/>OCCI<br/>───<br/>Jointures multi-sources"]
-    end
+## Le cas d'étude
 
-    subgraph ORACLE["Base Oracle 19c"]
-        IMPORT["Tables d'importation"]
-        PLSQL["Chaîne de procédures PL/SQL"]
-        MODEL["Modèle relationnel final"]
-    end
+Les rapports migrés sont des **états d'heures d'enseignement** (permanents et vacataires) qui cumulent toutes les difficultés possibles :
 
-    subgraph REPORT["Reporting"]
-        RS["Serveur de rapports"]
-    end
+- **Schémas Oracle dynamiques** — les données sont partitionnées par année universitaire (`ADESTATS_07`, `ADESTATS_08`…), le nom du schéma est injecté à l'exécution
+- **Cascade de paramètres à 6 niveaux** — Année → Schéma → UFR → Département → Dates → Enseignants
+- **Fonctions PL/SQL pipelinées** — les listes de valeurs sont générées par des fonctions `TABLE(...)`
+- **Multi-sélection** — passage de collections Java vers des clauses SQL `IN (...)`
+- **Calculs croisés** — heures par composante, heures "autres composantes", équivalents TD
 
-    ADE --> CPP
-    APO --> CPP
-    CKT --> CPP
+## Le problème fondamental
 
-    CRON --> WRAP
-    WRAP --> CPP
-
-    CPP --> IMPORT
-    IMPORT --> PLSQL
-    PLSQL --> MODEL
-
-    MODEL --> RS
-
-    style CPP fill:#F44336,stroke:#C62828,color:#fff
-    style MODEL fill:#009688,stroke:#004D40,color:#fff
-```
-
----
-
-## Chaîne de traitement PL/SQL
-
-Le traitement est orchestré par une procédure maître qui appelle une séquence d'étapes, chacune journalisée dans une table de logs dédiée.
-
-```mermaid
-graph LR
-    M["Procédure maître<br/>Orchestrateur"]
-    P1["Purge des tables<br/>de travail"]
-    P2["Ventilation des<br/>données brutes"]
-    P3["Enrichissement"]
-    P4["Agrégation des<br/>volumes horaires"]
-    P5["Construction des<br/>codes étape"]
-    P6["Croisement RH"]
-    P7["Assemblage du<br/>rapport final"]
-    P8["Bascule en<br/>production"]
-
-    M --> P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7 --> P8
-
-    style M fill:#FF9800,stroke:#E65100,color:#fff
-    style P8 fill:#009688,stroke:#004D40,color:#fff
-```
-
-| Étape | Rôle |
-| ----- | ---- |
-| 1 | Purge des tables de travail et gestion des contraintes d'intégrité |
-| 2 | Ventilation des données brutes : activités, enseignants, groupes, salles |
-| 3 | Enrichissement : effectifs de groupes, mapping des salles |
-| 4 | Agrégation des volumes horaires par type d'activité (CM, TD, TP, etc.) |
-| 5 | Construction des codes étape (effectifs et listage) |
-| 6 | Croisement avec les données RH (corps, contrat, coefficients d'équivalence) |
-| 7 | Assemblage du rapport dénormalisé final |
-| 8 | Bascule des tables de travail vers les tables de production |
-
----
-
-## Schémas annualisés
-
-Les données sont historisées dans des schémas Oracle annuels, avec un schéma commun portant les tables de référence partagées. Chaque schéma annuel est créé selon une procédure documentée, garantissant la reproductibilité d'une année sur l'autre.
-
----
-
-## Points techniques notables
-
-- **Multi-processus C++** — usage de `fork()` pour séparer extraction et suivi de progression, communication inter-processus via mémoire partagée (`shmget`/`shmat`), gestion de la concurrence via verrouillage de fichier (`flock`).
-- **Pattern tables de travail** — tables intermédiaires dédiées, sécurisant les transformations avant bascule en production (garantit qu'un traitement interrompu n'impacte jamais les données déjà en production).
-- **Jointures hétérogènes** — croisement de plusieurs sources distinctes via liens de base de données Oracle (DB links).
-- **Robustesse** — gestion des cas limites d'encodage et de typage sur des données multi-sources hétérogènes.
-
----
-
-## Contenu du dépôt
+OpenReport et ReportServer ne gèrent pas le cycle de vie des paramètres de la même façon.
 
 ```
-├── architecture/
-│   ├── chaine-traitement.md    # Détail de la chaîne de procédures PL/SQL
-│   ├── composants.md           # Composants techniques (schémas Oracle, binaire C++)
-│   └── programme-cpp.md        # Connexion OCCI, fork, mémoire partagée
-├── plsql/                      # Procédures PL/SQL anonymisées
-├── exploitation/               # Scripts cron, shell, configuration (génériques)
-├── vues/                       # Vues SQL pour la couche reporting
-└── snippet_occi_fork.cpp       # Extrait C++ (OCCI + fork + mémoire partagée)
+OpenReport
+══════════
+  Paramètres ──→ Résolution unique ──→ Injection JRXML ──→ Exécution Oracle
+                  (tout en un pass)
+
+ReportServer
+════════════
+  Phase 1 — Chargement interface
+  Paramètres RS ──→ Moteur JUEL ${...} ──→ Requêtes Oracle (cascade OK)
+
+  Phase 2 — Exécution du rapport
+  RS ré-évalue les requêtes ──→ Moteur JUEL ${...} ──→ Scope vide
+  ──→ PropertyNotFoundException ❌
+
+  Phase 3 — Moteur JasperReports
+  JRXML $P{...} / $P!{...} ──→ SQL Oracle
+  (syntaxe différente, types différents)
 ```
 
----
+OpenReport résolvait tout en un seul passage. ReportServer sépare le cycle en plusieurs phases avec **deux moteurs d'expression distincts** (JUEL pour RS, syntaxe Jasper pour le JRXML), et les paramètres en cascade ne survivent pas toujours à la transition.
 
-## Contexte
+Conséquence : il a fallu **déporter la logique métier** des requêtes JRXML vers des **fonctions Oracle dédiées**, réécrire les JRXML, et adapter la configuration des paramètres.
 
-Ce pipeline est en production quotidienne au sein d'un établissement d'enseignement supérieur. La maintenance couvre le code PL/SQL, le binaire C++, le serveur Oracle, l'infrastructure Linux et l'intégration avec la couche de reporting.
+## Structure du dépôt
 
-Ce dépôt documente le fonctionnement technique du système à des fins de démonstration de compétences (ETL, C++, PL/SQL, administration Linux) — il ne reflète pas nécessairement la configuration ou les données réelles de production.
+```
+docs/
+├── 01-pourquoi-ca-casse.md        Analyse des incompatibilités OR → RS
+├── 02-guide-migration-jrxml.md    Procédure de migration d'un rapport Jasper
+├── 03-solutions-techniques.md     Chaque problème rencontré et sa solution
+├── 04-configuration-rs.md         Config des paramètres dans ReportServer
+└── 05-suivi.md                    État d'avancement des rapports
+
+sql/
+├── types/                         Types Oracle (TYP_LOV_ROW, TYP_LOV_TAB)
+├── functions/                     Fonctions PL/SQL créées pour la migration
+└── utils/                         Debug et utilitaires
+
+jrxml/
+├── permanents/                    JRXML du rapport permanents
+├── vacataires/                    JRXML du rapport vacataires
+└── templates/                     JRXML de test minimal
+
+config/
+└── reportserver/
+    ├── parametres-rs.md           Documentation des paramètres RS
+    └── exports/                   Exports XML ReportServer (référence)
+```
+
+## Technologies
+
+| Couche | Technologie | Rôle |
+|---|---|---|
+| Base de données | Oracle 19c, PL/SQL | Données, fonctions pipelinées, schémas dynamiques |
+| Serveur de rapports | ReportServer 4.x | Gestion des paramètres, exécution, diffusion |
+| Moteur de rendu | JasperReports | Compilation JRXML, génération PDF |
+| Expressions RS | JUEL (Java EL) | Résolution des `${...}` dans les paramètres RS |
+| Ancien serveur | OpenReport | Plateforme d'origine (en cours de décommission) |
+
+## État du projet
+
+| Rapport | JRXML | Paramètres RS | Fonctions Oracle | Exécution PDF |
+|---|---|---|---|---|
+| Permanents | ✅ Réécrit | ✅ Cascade OK | ✅ Déployées | ✅ Validé |
+| Vacataires | ✅ Réécrit | ✅ Cascade OK | ✅ Déployées | ✅ Validé |
+
+Les deux rapports sont **fonctionnels en production**. Ce dépôt documente l'ensemble des difficultés rencontrées et les solutions mises en œuvre pour y parvenir.
+
+## Licence
+
+Publié à des fins de démonstration et de partage d'expérience.
